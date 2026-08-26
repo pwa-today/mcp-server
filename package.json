@@ -1,0 +1,33 @@
+{
+  "name": "@pwa-today/mcp-server",
+  "version": "0.1.0",
+  "description": "Local MCP server for PWA Today runtime audits",
+  "type": "module",
+  "bin": {
+    "pwa-today-mcp": "./bin/pwa-today-mcp.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pwa-today/pwatoday-mcp"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@pwa-today/pwa-check": "^0.1.6",
+    "zod": "^4.4.3"
+  }
+}
