@@ -5,9 +5,13 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
 import { createServer } from '../src/server.js';
+import { AuditApiError } from '../src/audit-client.js';
 
-const connect = async (auditClient) => {
-  const server = createServer({ auditClient });
+const connect = async (auditClient, options = {}) => {
+  const server = createServer({
+    auditClient,
+    ...options
+  });
   const client = new Client({
     name: 'test-client',
     version: '1.0.0'
@@ -64,16 +68,22 @@ test('returns API payloads unchanged and reports a failed quality gate separatel
       recommendation: 'Fix the manifest.'
     }]
   };
+  let idempotencyKey;
   const connection = await connect({
-    createAudit: async () => created,
+    createAudit: async (request, key) => {
+      idempotencyKey = key;
+
+      return created;
+    },
     getAudit: async () => audit,
     getAuditResults: async () => results
+  }, {
+    createId: () => 'generated-key'
   });
   const start = await connection.client.callTool({
     name: 'start_pwa_audit',
     arguments: {
-      url: 'https://example.com',
-      idempotencyKey: 'run-123'
+      url: 'https://example.com'
     }
   });
   const status = await connection.client.callTool({
@@ -90,10 +100,32 @@ test('returns API payloads unchanged and reports a failed quality gate separatel
   });
 
   assert.deepEqual(start.structuredContent, created);
+  assert.equal(idempotencyKey, 'generated-key');
+  assert.match(start.content[0].text, /Idempotency key: generated-key/);
   assert.deepEqual(status.structuredContent, audit);
   assert.match(status.content[0].text, /completed.*quality gate failed/i);
   assert.deepEqual(result.structuredContent, results);
   assert.match(result.content[0].text, /1 failed/i);
+  await connection.close();
+});
+
+test('returns the generated idempotency key when creation outcome is unknown', async () => {
+  const connection = await connect({
+    createAudit: async () => {
+      throw new AuditApiError('The outcome may be unknown.');
+    }
+  }, {
+    createId: () => 'generated-key'
+  });
+  const response = await connection.client.callTool({
+    name: 'start_pwa_audit',
+    arguments: {
+      url: 'https://example.com'
+    }
+  });
+
+  assert.equal(response.isError, true);
+  assert.match(response.content[0].text, /idempotency key generated-key/i);
   await connection.close();
 });
 

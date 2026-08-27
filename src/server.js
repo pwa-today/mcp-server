@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
@@ -46,12 +48,19 @@ const startAuditSchema = {
     failOnWarnings: z.boolean().optional()
   }).optional(),
   source: sourceSchema.optional(),
-  idempotencyKey: z.string().min(1).max(200)
+  idempotencyKey: z.string().min(1).max(200).optional()
 };
 
-const toolError = (error) => {
+const toolError = (error, {
+  idempotencyKey
+} = {}) => {
   const retryAfter = error instanceof AuditApiError && error.retryAfter
     ? ` Retry after ${error.retryAfter}.`
+    : '';
+  const retryWithSameKey = error instanceof AuditApiError && (
+    error.status === null || error.status >= 500
+  )
+    ? ` Retry this creation with idempotency key ${idempotencyKey}.`
     : '';
   const message = error instanceof AuditApiError
     ? error.message
@@ -60,7 +69,7 @@ const toolError = (error) => {
   return {
     content: [{
       type: 'text',
-      text: `${message}${retryAfter}`
+      text: `${message}${retryAfter}${retryWithSameKey}`
     }],
     isError: true
   };
@@ -80,14 +89,17 @@ const resultSummary = (result) => {
   return `${result.status}; ${countText}. ${failed > 0 ? `${failed} failed or error check${failed === 1 ? '' : 's'} require attention.` : 'No failed or error checks.'}`;
 };
 
-export const createServer = ({ auditClient }) => {
+export const createServer = ({
+  auditClient,
+  createId = randomUUID
+}) => {
   const server = new McpServer({
     name: '@pwa-today/mcp-server',
     version: '0.1.0'
   });
 
   server.registerTool('start_pwa_audit', {
-    description: 'Starts an automated browser-based PWA Today runtime audit for a verified application. This consumes one audit from the customer\'s current allowance. It returns immediately with an audit ID; use the status and results tools to follow completion.',
+    description: 'Starts an automated browser-based PWA Today runtime audit for a verified application. This consumes one audit from the customer\'s current allowance. It returns immediately with an audit ID; use the status and results tools to follow completion. The server generates an idempotency key when one is not provided.',
     inputSchema: startAuditSchema,
     annotations: {
       readOnlyHint: false,
@@ -96,20 +108,27 @@ export const createServer = ({ auditClient }) => {
       openWorldHint: true
     }
   }, async ({ idempotencyKey, ...request }) => {
+    const auditIdempotencyKey = idempotencyKey ?? createId();
+
     try {
-      const created = await auditClient.createAudit(request, idempotencyKey);
+      const created = await auditClient.createAudit(
+        request,
+        auditIdempotencyKey
+      );
       const state = created.reused ? 'reused' : 'queued';
 
       return {
         content: [{
           type: 'text',
-          text: `Audit ${state}. Allowance consumption follows existing PWA Today API behavior.`
+          text: `Audit ${state}. Allowance consumption follows existing PWA Today API behavior. Idempotency key: ${auditIdempotencyKey}.`
         }],
         structuredContent: created
       };
     }
     catch (error) {
-      return toolError(error);
+      return toolError(error, {
+        idempotencyKey: auditIdempotencyKey
+      });
     }
   });
 

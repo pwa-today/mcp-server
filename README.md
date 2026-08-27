@@ -30,7 +30,7 @@ Review audit <auditId>, map every failed or warning check to this codebase, and 
 ```
 
 ```text
-After the deployment is live, run the audit again with a new idempotency key and compare the quality gate and failed checks.
+After the deployment is live, run the audit again and compare the quality gate and failed checks.
 ```
 
-The MCP package does not accept audited-application authentication or deploy applications.
+The server creates an idempotency key for each new audit and reports it with the audit ID. If creation has an unknown outcome, retry with that same key. The MCP package does not accept audited-application authentication or deploy applications.

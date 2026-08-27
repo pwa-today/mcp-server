@@ -111,8 +111,7 @@ test('runs all MVP tools through a stdio MCP server', async () => {
     const start = await client.callTool({
       name: 'start_pwa_audit',
       arguments: {
-        url: 'https://example.com',
-        idempotencyKey: 'logical-run-123'
+        url: 'https://example.com'
       }
     });
     const status = await client.callTool({
@@ -133,8 +132,8 @@ test('runs all MVP tools through a stdio MCP server', async () => {
     assert.match(status.content[0].text, /quality gate failed/i);
     assert.equal(results.structuredContent.terminal, true);
     assert.equal(requests[0].authorization, 'Basic dGVzdC1jbGllbnQtaWQ6dGVzdC1jbGllbnQtc2VjcmV0');
-    assert.equal(requests[1].idempotencyKey, 'logical-run-123');
-    assert.doesNotMatch(requests[1].body, /logical-run-123|test-access-token/);
+    assert.match(requests[1].idempotencyKey, /^[a-f0-9-]{36}$/);
+    assert.doesNotMatch(requests[1].body, /test-access-token/);
     assert.equal(stderr.join(''), '');
   }
   finally {
