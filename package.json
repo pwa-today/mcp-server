@@ -27,7 +27,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@pwa-today/pwa-check": "^0.1.6",
     "zod": "^4.4.3"
   }
 }
