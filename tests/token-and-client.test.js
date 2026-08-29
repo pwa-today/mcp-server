@@ -175,6 +175,34 @@ test('does not retry a 401 more than once', async () => {
   assert.equal(invalidated, 1);
 });
 
+test('encodes application history and retrieves entitlement through the authenticated request boundary', async () => {
+  const requests = [];
+  const client = createAuditClient({
+    apiUrl: 'https://api.example.com',
+    tokenProvider: {
+      getAccessToken: async () => 'test-token',
+      invalidate: () => {}
+    },
+    fetchFunction: async (url, options) => {
+      requests.push({ url, options });
+
+      return jsonResponse(200, url.includes('/entitlement') ? {
+        plan: 'developer'
+      } : {
+        applicationId: 'example.com',
+        audits: []
+      });
+    }
+  });
+
+  await client.listApplicationAudits('EXAMPLE.COM', 20);
+  await client.getAuditEntitlement();
+
+  assert.equal(requests[0].url, 'https://api.example.com/v1/applications/EXAMPLE.COM/audits?limit=20');
+  assert.equal(requests[0].options.headers.authorization, 'Bearer test-token');
+  assert.equal(requests[1].url, 'https://api.example.com/v1/entitlement');
+});
+
 test('reports an unknown outcome when an API request cannot be reached', async () => {
   const client = createAuditClient({
     apiUrl: 'https://api.example.com',

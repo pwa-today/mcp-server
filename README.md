@@ -18,6 +18,9 @@ The server uses stdio only and exposes these tools:
 - `start_pwa_audit`
 - `get_pwa_audit_status`
 - `get_pwa_audit_results`
+- `list_pwa_audits`
+- `compare_pwa_audits`
+- `get_pwa_audit_entitlement`
 
 Example requests:
 
@@ -33,4 +36,18 @@ Review audit <auditId>, map every failed or warning check to this codebase, and 
 After the deployment is live, run the audit again and compare the quality gate and failed checks.
 ```
 
+```text
+List the 10 most recent audits for example.com and identify the latest completed run.
+```
+
+```text
+Compare these two audit IDs: [baseline audit id] and [candidate audit id]. Tell me which checks resolved, which regressed, and whether the comparison used the same ruleset.
+```
+
+```text
+Check my PWA Today entitlement before starting an audit. Do not start one yet.
+```
+
 The server creates an idempotency key for each new audit and reports it with the audit ID. If creation has an unknown outcome, retry with that same key. The MCP package does not accept audited-application authentication or deploy applications.
+
+Listing audits, comparing audits, and retrieving entitlement do not consume allowance. Starting an audit can reserve or consume allowance according to existing API behavior. Comparison reports observed result differences; it does not prove that a particular code or deployment change caused them.

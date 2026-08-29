@@ -4,11 +4,21 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
 import { AuditApiError } from './audit-client.js';
+import {
+  compareAudits,
+  comparisonSummary
+} from './audit-comparison.js';
 
 const auditIdSchema = z.string()
   .min(1)
   .max(200)
   .regex(/^[A-Za-z0-9_-]+$/, 'auditId must contain only letters, numbers, hyphens, and underscores.');
+
+const applicationIdSchema = z.string()
+  .min(1)
+  .max(253)
+  .regex(/^[A-Za-z0-9.-]+$/, 'applicationId must contain only letters, numbers, dots, and hyphens.')
+  .transform((value) => value.toLowerCase());
 
 const urlSchema = z.string()
   .max(2048)
@@ -184,6 +194,111 @@ export const createServer = ({
           text: resultSummary(results)
         }],
         structuredContent: results
+      };
+    }
+    catch (error) {
+      return toolError(error);
+    }
+  });
+
+  server.registerTool('list_pwa_audits', {
+    description: 'Lists the authenticated customer\'s recent PWA Today runtime audits for one application, newest first. Use the returned audit IDs to retrieve results or compare runs.',
+    inputSchema: {
+      applicationId: applicationIdSchema,
+      limit: z.number().int().min(1).max(100).default(20)
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  }, async ({ applicationId, limit }) => {
+    try {
+      const history = await auditClient.listApplicationAudits(applicationId, limit);
+      const newest = history.audits?.[0];
+      const summary = newest
+        ? `Found ${history.audits.length} audits for ${history.applicationId}. Newest: ${newest.auditId}, ${newest.status}, ${newest.score === null || newest.score === undefined ? 'score pending' : `score ${newest.score}`}, quality gate ${newest.qualityGate?.passed === undefined ? 'pending' : newest.qualityGate.passed ? 'passed' : 'failed'}.`
+        : `No audits were found for ${history.applicationId}.`;
+
+      return {
+        content: [{
+          type: 'text',
+          text: summary
+        }],
+        structuredContent: history
+      };
+    }
+    catch (error) {
+      return toolError(error);
+    }
+  });
+
+  server.registerTool('compare_pwa_audits', {
+    description: 'Compares a baseline PWA Today audit with a candidate audit. Reports score and quality-gate changes, resolved findings, newly problematic checks, persistent problems, selected-check differences, and ruleset differences.',
+    inputSchema: {
+      baselineAuditId: auditIdSchema,
+      candidateAuditId: auditIdSchema
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  }, async ({ baselineAuditId, candidateAuditId }) => {
+    if (baselineAuditId === candidateAuditId) {
+      return toolError(new AuditApiError('baselineAuditId and candidateAuditId must be different.'));
+    }
+
+    try {
+      const [baselineAudit, baselineResults, candidateAudit, candidateResults] = await Promise.all([
+        auditClient.getAudit(baselineAuditId),
+        auditClient.getAuditResults(baselineAuditId),
+        auditClient.getAudit(candidateAuditId),
+        auditClient.getAuditResults(candidateAuditId)
+      ]);
+      const comparison = compareAudits({
+        baselineAudit,
+        baselineResults,
+        candidateAudit,
+        candidateResults
+      });
+
+      return {
+        content: [{
+          type: 'text',
+          text: comparisonSummary(comparison)
+        }],
+        structuredContent: comparison
+      };
+    }
+    catch (error) {
+      return toolError(error);
+    }
+  });
+
+  server.registerTool('get_pwa_audit_entitlement', {
+    description: 'Returns the authenticated customer\'s current PWA Today audit plan, remaining allowance, application usage, concurrency limit, supported audit profiles and checks, and relevant renewal or expiry dates. This tool does not consume an audit.',
+    inputSchema: {},
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  }, async () => {
+    try {
+      const entitlement = await auditClient.getAuditEntitlement();
+      const availability = entitlement.available ? 'are available' : 'are unavailable';
+      const reason = entitlement.unavailableReason ? ` Reason: ${entitlement.unavailableReason}.` : '';
+
+      return {
+        content: [{
+          type: 'text',
+          text: `${entitlement.plan} plan: ${entitlement.auditsRemaining} of ${entitlement.auditLimit} audits remain in the current period. ${entitlement.auditType} audits ${availability}; ${entitlement.applicationsUsed} of ${entitlement.applicationLimit} applications are in use.${reason}`
+        }],
+        structuredContent: entitlement
       };
     }
     catch (error) {

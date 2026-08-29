@@ -1,6 +1,6 @@
 {
   "name": "@pwa-today/mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local MCP server for PWA Today runtime audits",
   "type": "module",
   "bin": {

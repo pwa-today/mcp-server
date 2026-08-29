@@ -29,15 +29,151 @@ const connect = async (auditClient, options = {}) => {
   };
 };
 
-test('exposes exactly the three MVP tools', async () => {
+test('exposes exactly the six audit tools', async () => {
   const connection = await connect({});
   const response = await connection.client.listTools();
 
   assert.deepEqual(response.tools.map(({ name }) => name), [
     'start_pwa_audit',
     'get_pwa_audit_status',
-    'get_pwa_audit_results'
+    'get_pwa_audit_results',
+    'list_pwa_audits',
+    'compare_pwa_audits',
+    'get_pwa_audit_entitlement'
   ]);
+  await connection.close();
+});
+
+test('lists application audits without changing the API payload', async () => {
+  const history = {
+    applicationId: 'example.com',
+    audits: [{
+      auditId: 'audit-123',
+      status: 'completed',
+      score: 94,
+      qualityGate: {
+        passed: true
+      }
+    }]
+  };
+  let request;
+  const connection = await connect({
+    listApplicationAudits: async (...arguments_) => {
+      request = arguments_;
+
+      return history;
+    }
+  });
+  const response = await connection.client.callTool({
+    name: 'list_pwa_audits',
+    arguments: {
+      applicationId: 'EXAMPLE.COM'
+    }
+  });
+
+  assert.deepEqual(request, ['example.com', 20]);
+  assert.deepEqual(response.structuredContent, history);
+  assert.match(response.content[0].text, /Found 1 audits.*score 94.*passed/i);
+  await connection.close();
+});
+
+test('compares audits concurrently with deterministic structured differences', async () => {
+  const audits = {
+    'audit-before': {
+      auditId: 'audit-before',
+      status: 'completed',
+      score: 72,
+      qualityGate: { passed: false },
+      profile: 'standard',
+      selectedChecks: ['manifest'],
+      applicationId: 'example.com',
+      url: 'https://example.com/',
+      versions: { engineVersion: '1', rulesetVersion: 'a' }
+    },
+    'audit-after': {
+      auditId: 'audit-after',
+      status: 'completed',
+      score: 94,
+      qualityGate: { passed: true },
+      profile: 'standard',
+      selectedChecks: ['manifest'],
+      applicationId: 'example.com',
+      url: 'https://example.com/',
+      versions: { engineVersion: '1', rulesetVersion: 'a' }
+    }
+  };
+  const results = {
+    'audit-before': {
+      terminal: true,
+      results: [{ check: 'manifest', status: 'failed' }]
+    },
+    'audit-after': {
+      terminal: true,
+      results: [{ check: 'manifest', status: 'passed' }]
+    }
+  };
+  const connection = await connect({
+    getAudit: async (auditId) => audits[auditId],
+    getAuditResults: async (auditId) => results[auditId]
+  });
+  const response = await connection.client.callTool({
+    name: 'compare_pwa_audits',
+    arguments: {
+      baselineAuditId: 'audit-before',
+      candidateAuditId: 'audit-after'
+    }
+  });
+
+  assert.equal(response.structuredContent.scoreChange, 22);
+  assert.equal(response.structuredContent.comparisonComplete, true);
+  assert.equal(response.structuredContent.resolved[0].check, 'manifest');
+  assert.match(response.content[0].text, /improved by 22/i);
+  await connection.close();
+});
+
+test('rejects identical audit IDs without calling the API', async () => {
+  let called = false;
+  const connection = await connect({
+    getAudit: async () => {
+      called = true;
+    },
+    getAuditResults: async () => {
+      called = true;
+    }
+  });
+  const response = await connection.client.callTool({
+    name: 'compare_pwa_audits',
+    arguments: {
+      baselineAuditId: 'audit-123',
+      candidateAuditId: 'audit-123'
+    }
+  });
+
+  assert.equal(response.isError, true);
+  assert.equal(called, false);
+  await connection.close();
+});
+
+test('returns the entitlement API payload unchanged', async () => {
+  const entitlement = {
+    plan: 'developer',
+    available: true,
+    auditType: 'standard',
+    auditLimit: 100,
+    auditsRemaining: 62,
+    applicationsUsed: 2,
+    applicationLimit: 3
+  };
+  const connection = await connect({
+    getAuditEntitlement: async () => entitlement
+  });
+  const response = await connection.client.callTool({
+    name: 'get_pwa_audit_entitlement',
+    arguments: {}
+  });
+
+  assert.deepEqual(response.structuredContent, entitlement);
+  assert.match(response.content[0].text, /62 of 100 audits remain/i);
   await connection.close();
 });
 

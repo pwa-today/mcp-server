@@ -113,6 +113,22 @@ export const createAuditClient = ({
       return await request({
         path: `/v1/audits/${encodeURIComponent(auditId)}/results`
       });
+    },
+    listApplicationAudits: async (applicationId, limit) => {
+      const parameters = new URLSearchParams();
+
+      if (limit !== undefined) {
+        parameters.set('limit', String(limit));
+      }
+
+      return await request({
+        path: `/v1/applications/${encodeURIComponent(applicationId)}/audits${parameters.size ? `?${parameters}` : ''}`
+      });
+    },
+    getAuditEntitlement: async () => {
+      return await request({
+        path: '/v1/entitlement'
+      });
     }
   };
 };
