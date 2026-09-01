@@ -1,4 +1,5 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { checkPwa } from '@pwa-today/pwa-check';
 
 import { createAuditClient } from './audit-client.js';
 import { createServer } from './server.js';
@@ -18,7 +19,7 @@ export const start = async ({
     fetchFunction,
     tokenProvider
   });
-  const server = createServer({ auditClient });
+  const server = createServer({ auditClient, checkPwa });
 
   await server.connect(new StdioServerTransport());
 };

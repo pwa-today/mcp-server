@@ -10,6 +10,7 @@ import { AuditApiError } from '../src/audit-client.js';
 const connect = async (auditClient, options = {}) => {
   const server = createServer({
     auditClient,
+    checkPwa: async () => [],
     ...options
   });
   const client = new Client({
@@ -29,11 +30,12 @@ const connect = async (auditClient, options = {}) => {
   };
 };
 
-test('exposes exactly the six audit tools', async () => {
+test('exposes the generic PWA check and six audit tools', async () => {
   const connection = await connect({});
   const response = await connection.client.listTools();
 
   assert.deepEqual(response.tools.map(({ name }) => name), [
+    'check_pwa',
     'start_pwa_audit',
     'get_pwa_audit_status',
     'get_pwa_audit_results',
@@ -41,6 +43,28 @@ test('exposes exactly the six audit tools', async () => {
     'compare_pwa_audits',
     'get_pwa_audit_entitlement'
   ]);
+  await connection.close();
+});
+
+test('runs generic public PWA checks without calling the audit API', async () => {
+  const checked = [];
+  const connection = await connect({}, {
+    checkPwa: async (...arguments_) => {
+      checked.push(arguments_);
+      return [{ status: 'pass', code: 'site.reachable' }];
+    }
+  });
+  const response = await connection.client.callTool({
+    name: 'check_pwa',
+    arguments: { url: 'https://example.com/' }
+  });
+
+  assert.deepEqual(checked, [['https://example.com/', { publicOnly: true }]]);
+  assert.deepEqual(response.structuredContent, {
+    url: 'https://example.com/',
+    summary: { pass: 1, warn: 0, fail: 0 },
+    results: [{ status: 'pass', code: 'site.reachable' }]
+  });
   await connection.close();
 });
 

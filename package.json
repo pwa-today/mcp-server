@@ -1,6 +1,6 @@
 {
   "name": "@pwa-today/mcp-server",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Local MCP server for PWA Today runtime audits",
   "type": "module",
   "bin": {
@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@pwa-today/pwa-check": "^0.1.7",
     "zod": "^4.4.3"
   }
 }

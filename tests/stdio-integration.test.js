@@ -12,7 +12,7 @@ const json = (response, status, body) => {
   response.end(JSON.stringify(body));
 };
 
-test('runs all audit tools through a stdio MCP server', async () => {
+test('runs generic-check and audit tools through a stdio MCP server', async () => {
   const requests = [];
   const api = createServer((request, response) => {
     let body = '';
@@ -206,7 +206,7 @@ test('runs all audit tools through a stdio MCP server', async () => {
       arguments: {}
     });
 
-    assert.equal(tools.tools.length, 6);
+    assert.equal(tools.tools.length, 7);
     assert.equal(start.structuredContent.auditId, 'audit-123');
     assert.match(status.content[0].text, /quality gate failed/i);
     assert.equal(results.structuredContent.terminal, true);

@@ -101,11 +101,48 @@ const resultSummary = (result) => {
 
 export const createServer = ({
   auditClient,
+  checkPwa,
   createId = randomUUID
 }) => {
   const server = new McpServer({
     name: '@pwa-today/mcp-server',
     version: '0.1.0'
+  });
+
+  server.registerTool('check_pwa', {
+    description: 'Runs generic PWA checks against a public HTTPS URL. This does not create a PWA Today audit, require verified-domain ownership, or consume audit allowance.',
+    inputSchema: {
+      url: urlSchema
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  }, async ({ url }) => {
+    try {
+      const results = await checkPwa(url, { publicOnly: true });
+      const summary = results.reduce((counts, result) => {
+        counts[result.status] = (counts[result.status] ?? 0) + 1;
+        return counts;
+      }, { pass: 0, warn: 0, fail: 0 });
+
+      return {
+        content: [{
+          type: 'text',
+          text: `PWA check completed: ${summary.pass} passed, ${summary.warn} warnings, ${summary.fail} failed.`
+        }],
+        structuredContent: {
+          url,
+          summary,
+          results
+        }
+      };
+    }
+    catch (error) {
+      return toolError(error);
+    }
   });
 
   server.registerTool('start_pwa_audit', {
