@@ -17,6 +17,7 @@ The server uses stdio only and exposes these tools:
 
 - `check_pwa`
 - `start_pwa_audit`
+- `create_pwa_audit_configuration`
 - `get_pwa_audit_status`
 - `get_pwa_audit_results`
 - `list_pwa_audits`
@@ -54,5 +55,7 @@ Check my PWA Today entitlement before starting an audit. Do not start one yet.
 ```
 
 `check_pwa` accepts public HTTPS targets only. It does not create an audit, require an account, or consume allowance. `start_pwa_audit` creates a hosted audit and still requires a verified application hostname. The server creates an idempotency key for each new audit and reports it with the audit ID. If creation has an unknown outcome, retry with that same key. The MCP package does not accept audited-application authentication or deploy applications.
+
+`create_pwa_audit_configuration` saves a reusable configuration without running an audit. Agents should retrieve entitlement first, guide the user through the plan-compatible checks and required options, and confirm the final configuration before saving. It does not accept site authentication or other secrets.
 
 Listing audits, comparing audits, and retrieving entitlement do not consume allowance. Starting an audit can reserve or consume allowance according to existing API behavior. Comparison reports observed result differences; it does not prove that a particular code or deployment change caused them.

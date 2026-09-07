@@ -203,6 +203,36 @@ test('encodes application history and retrieves entitlement through the authenti
   assert.equal(requests[1].url, 'https://api.example.com/v1/entitlement');
 });
 
+test('creates a saved audit configuration through the shared API endpoint', async () => {
+  const requests = [];
+  const client = createAuditClient({
+    apiUrl: 'https://api.example.com',
+    tokenProvider: {
+      getAccessToken: async () => 'test-token',
+      invalidate: () => {}
+    },
+    fetchFunction: async (url, options) => {
+      requests.push({ url, options });
+
+      return jsonResponse(201, {
+        configurationId: 'configuration-123',
+        name: 'Production'
+      });
+    }
+  });
+  const created = await client.createAuditConfiguration({
+    name: 'Production',
+    request: {
+      url: 'https://example.com'
+    }
+  });
+
+  assert.equal(created.configurationId, 'configuration-123');
+  assert.equal(requests[0].url, 'https://api.example.com/v1/audit-configurations');
+  assert.equal(requests[0].options.method, 'POST');
+  assert.equal(requests[0].options.headers.authorization, 'Bearer test-token');
+});
+
 test('reports an unknown outcome when an API request cannot be reached', async () => {
   const client = createAuditClient({
     apiUrl: 'https://api.example.com',

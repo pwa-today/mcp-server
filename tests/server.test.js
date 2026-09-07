@@ -30,19 +30,63 @@ const connect = async (auditClient, options = {}) => {
   };
 };
 
-test('exposes the generic PWA check and six audit tools', async () => {
+test('exposes the generic PWA check and seven audit tools', async () => {
   const connection = await connect({});
   const response = await connection.client.listTools();
 
   assert.deepEqual(response.tools.map(({ name }) => name), [
     'check_pwa',
     'start_pwa_audit',
+    'create_pwa_audit_configuration',
     'get_pwa_audit_status',
     'get_pwa_audit_results',
     'list_pwa_audits',
     'compare_pwa_audits',
     'get_pwa_audit_entitlement'
   ]);
+  await connection.close();
+});
+
+test('creates a configuration without accepting site authentication', async () => {
+  let request;
+  const connection = await connect({
+    createAuditConfiguration: async (...arguments_) => {
+      request = arguments_[0];
+
+      return {
+        configurationId: 'configuration-123',
+        name: 'Production'
+      };
+    }
+  });
+  const response = await connection.client.callTool({
+    name: 'create_pwa_audit_configuration',
+    arguments: {
+      name: 'Production',
+      url: 'https://example.com',
+      profile: 'standard',
+      options: {
+        'offline-navigation': {
+          series: [['/']]
+        }
+      }
+    }
+  });
+
+  assert.deepEqual(request, {
+    name: 'Production',
+    request: {
+      url: 'https://example.com',
+      profile: 'standard',
+      options: {
+        'offline-navigation': {
+          series: [['/']]
+        }
+      }
+    }
+  });
+  assert.equal(response.structuredContent.configurationId, 'configuration-123');
+  assert.match(response.content[0].text, /has not started an audit/i);
   await connection.close();
 });
 

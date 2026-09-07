@@ -206,7 +206,7 @@ test('runs generic-check and audit tools through a stdio MCP server', async () =
       arguments: {}
     });
 
-    assert.equal(tools.tools.length, 7);
+    assert.equal(tools.tools.length, 8);
     assert.equal(start.structuredContent.auditId, 'audit-123');
     assert.match(status.content[0].text, /quality gate failed/i);
     assert.equal(results.structuredContent.terminal, true);

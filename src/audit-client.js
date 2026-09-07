@@ -104,6 +104,13 @@ export const createAuditClient = ({
         path: '/v1/audits'
       });
     },
+    createAuditConfiguration: async (requestBody) => {
+      return await request({
+        body: requestBody,
+        method: 'POST',
+        path: '/v1/audit-configurations'
+      });
+    },
     getAudit: async (auditId) => {
       return await request({
         path: `/v1/audits/${encodeURIComponent(auditId)}`

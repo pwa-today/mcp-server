@@ -61,6 +61,23 @@ const startAuditSchema = {
   idempotencyKey: z.string().min(1).max(200).optional()
 };
 
+const auditConfigurationSchema = {
+  name: z.string().trim().min(1).max(80),
+  applicationId: applicationIdSchema.optional(),
+  url: urlSchema,
+  profile: z.enum(['quick', 'standard', 'full', 'custom']).optional(),
+  include: z.array(z.string()).optional(),
+  exclude: z.array(z.string()).optional(),
+  options: z.record(z.string(), z.unknown()).optional(),
+  disabledRules: z.record(z.string(), z.array(z.string())).optional(),
+  qualityGate: z.object({
+    minimumScore: z.number().min(0).max(100).optional(),
+    failOn: z.array(z.enum(['critical', 'high', 'medium', 'low'])).optional(),
+    failOnWarnings: z.boolean().optional()
+  }).optional(),
+  source: sourceSchema.optional()
+};
+
 const toolError = (error, {
   idempotencyKey
 } = {}) => {
@@ -176,6 +193,47 @@ export const createServer = ({
       return toolError(error, {
         idempotencyKey: auditIdempotencyKey
       });
+    }
+  });
+
+  server.registerTool('create_pwa_audit_configuration', {
+    description: 'Saves a reusable PWA Today audit configuration without starting an audit. Before calling, get_pwa_audit_entitlement and guide the user through the compatible options: name and HTTPS URL; then a permitted profile or custom check selection; then the required options for each selected check (cache routes, offline-navigation URL sequences, offline-request-retry requests, and push-notifications payload when applicable); then optional disabled rules and quality-gate thresholds. Confirm the final choices before saving. Do not ask for or accept audit-site authentication, passwords, cookies, tokens, or other secrets through this tool.',
+    inputSchema: auditConfigurationSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true
+    }
+  }, async (request) => {
+    try {
+      const created = await auditClient.createAuditConfiguration({
+        name: request.name,
+        ...(request.applicationId ? {
+          applicationId: request.applicationId
+        } : {}),
+        request: Object.fromEntries(Object.entries({
+          url: request.url,
+          profile: request.profile,
+          include: request.include,
+          exclude: request.exclude,
+          options: request.options,
+          disabledRules: request.disabledRules,
+          qualityGate: request.qualityGate,
+          source: request.source
+        }).filter(([, value]) => value !== undefined))
+      });
+
+      return {
+        content: [{
+          type: 'text',
+          text: `Saved audit configuration ${created.name} (${created.configurationId}). It has not started an audit.`
+        }],
+        structuredContent: created
+      };
+    }
+    catch (error) {
+      return toolError(error);
     }
   });
 
